@@ -17,6 +17,7 @@ export "./cid/generator.dart";
 export "./transport/error.dart" hide Error, TransportError;
 export "./transport/parameters.dart";
 
+export "./math.dart" show BMath;
 export "./crypto.dart" hide ServerConfig, ClientConfig;
 export "./addr.dart";
 export "./rand.dart";
@@ -81,21 +82,20 @@ abstract class Dir with _$Dir {
 }
 
 class StreamId {
-  late final BigInt id;
+  late final Uint64 id;
   StreamId(this.id);
-  StreamId.from(int v) : id = BigInt.from(v);
-  StreamId.new_(Side initiator, Dir dir, BigInt index) {
-    id = (index << 2) | ((dir.value.asBigInt) << 1) | initiator.value.asBigInt;
+  StreamId.from(int v) : id = Uint64(v);
+  StreamId.new_(Side initiator, Dir dir, Uint64 index) {
+    id = (index << 2) | (Uint64(dir.value) << 1) | Uint64(initiator.value);
   }
 
   Side initiator() =>
-    id & BigInt.one == 0 ? .client() : .server();
+    id & .one == 0 ? .client() : .server();
 
   Dir dir() =>
-    id & BigInt.two == 0 ? .bi() : .uni();
+    id & .two == 0 ? .bi() : .uni();
   
-  BigInt index() =>
-    id >> 2;
+  Uint64 index() => id >> 2;
   
   @override
   String toString() {
@@ -109,8 +109,7 @@ class StreamId {
 }
 
 extension StreamIdToVarInt on StreamId {
-  VarInt toVarInt() =>
-    VarInt.newUnchecked(id);
+  VarInt toVarInt() => VarInt(id);
 }
 
 extension VarIntToStreamId on VarInt {

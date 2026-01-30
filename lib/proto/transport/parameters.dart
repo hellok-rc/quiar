@@ -13,22 +13,22 @@ abstract class TransportParameters with _$TransportParameters {
   static const _default = TransportParameters();
 
   const factory TransportParameters({
-    @Default(0) int maxIdleTimeout,
-    @Default(65527) int maxUdpPayloadSize,
-    @Default(0) int initialMaxData,
-    @Default(0) int initialMaxStreamDataBidiLocal,
-    @Default(0) int initialMaxStreamDataBidiRemote,
-    @Default(0) int initialMaxStreamDataUni,
-    @Default(0) int initialMaxStreamsBidi,
-    @Default(0) int initialMaxStreamsUni,
-    @Default(3) int ackDelayExponent,
-    @Default(25) int maxAckDelay,
-    @Default(2) int activeConnectionIdLimit,
+    @Default(VarInt(Uint64(0))) VarInt maxIdleTimeout,
+    @Default(VarInt(Uint64(65525))) VarInt maxUdpPayloadSize,
+    @Default(VarInt(Uint64(0))) VarInt initialMaxData,
+    @Default(VarInt(Uint64(0))) VarInt initialMaxStreamDataBidiLocal,
+    @Default(VarInt(Uint64(0))) VarInt initialMaxStreamDataBidiRemote,
+    @Default(VarInt(Uint64(0))) VarInt initialMaxStreamDataUni,
+    @Default(VarInt(Uint64(0))) VarInt initialMaxStreamsBidi,
+    @Default(VarInt(Uint64(0))) VarInt initialMaxStreamsUni,
+    @Default(VarInt(Uint64(0))) VarInt ackDelayExponent,
+    @Default(VarInt(Uint64(25))) VarInt maxAckDelay,
+    @Default(VarInt(Uint64(2))) VarInt activeConnectionIdLimit,
     @Default(false) bool disableActiveMigration,
-    int? maxDatagramFrameSize,
+    VarInt? maxDatagramFrameSize,
     ConnectionId? initialSrcCid,
     @Default(false) bool greaseQuicBit,
-    int? minAckDelay,
+    VarInt? minAckDelay,
     ConnectionId? originalDstCid,
     ConnectionId? retrySrcCid,
     ResetToken? statelessResetToken,
@@ -56,11 +56,11 @@ abstract class TransportParameters with _$TransportParameters {
       maxUdpPayloadSize: endpointConfig.maxUdpPayloadSize,
       maxIdleTimeout: config.maxIdleTimeout,
       disableActiveMigration: serverConfig?.migration ?? false,
-      activeConnectionIdLimit: cidGen.cidLen() == 0 ? 2 : CidQueue.len,
+      activeConnectionIdLimit: (cidGen.cidLen() == 0 ? 2 : CidQueue.len).asVarInt,
       maxDatagramFrameSize: config.datagramReceiveBufferSize == null
-        ? null : math.min(config.datagramReceiveBufferSize!, 65535),
+        ? null : VarInt.fromInt(math.min(config.datagramReceiveBufferSize!, 65535)),
       greaseQuicBit: endpointConfig.greaseQuicBit,
-      minAckDelay: timerGranularity.inMicroseconds,
+      minAckDelay: VarInt.fromInt(timerGranularity.inMicroseconds),
       greaseTransportParameter: ReservedTransportParameter.random(rng),
       writeOrder: Uint8List.fromList(List.generate(
         TransportParameterId.supported.length,
@@ -78,7 +78,7 @@ abstract class TransportParameters with _$TransportParameters {
       || cached.initialMaxStreamDataUni > initialMaxStreamDataUni
       || cached.initialMaxStreamsBidi > initialMaxStreamsBidi
       || cached.initialMaxStreamsUni > initialMaxStreamsUni
-      || (cached.maxDatagramFrameSize ?? 0) > (maxDatagramFrameSize ?? 0)
+      || (cached.maxDatagramFrameSize ?? const VarInt(.zero)) > (maxDatagramFrameSize ?? const VarInt(.zero))
       || cached.greaseQuicBit && !greaseQuicBit
     ) {
       return .err(.transport(
@@ -89,8 +89,8 @@ abstract class TransportParameters with _$TransportParameters {
     return .ok(null);
   }
 
-  BigInt issueCidsLimit() {
-    return math.min(activeConnectionIdLimit, locCidCounet).asBigInt;
+  Uint64 issueCidsLimit() {
+    return BMath.min([ activeConnectionIdLimit, locCidCounet.asVarInt ]).inner;
   }
 
   void write(SizedBufferWritter writter) {
@@ -101,77 +101,76 @@ abstract class TransportParameters with _$TransportParameters {
 
     for (final idx in ids) {
       final id = TransportParameterId.supported[idx];
-      final write_varint = (int value) {
-        final v = VarInt.new_(value.asBigInt).takeOk();
-        writter.writeVar(v.size().asBigInt);
+      final write_varint = (VarInt v) {
+        writter.writeVar(Uint64(v.size()));
         writter.writeVar(v.inner);
       };
-      final write_params = (int value, int def) {
+      final write_params = (VarInt value, VarInt def) {
         if (value == def) return;
-        // writter.writeVar(BigInt.from(id.value));
-        final v = VarInt.new_(value.asBigInt).takeOk();
-        writter.writeVar(v.size().asBigInt);
+        final v = value;
+        writter.writeVar(Uint64(v.size()));
         writter.writeVar(v.inner);
       };
       id.when(
         reservedTransportParameter: () {
           if (greaseTransportParameter == null) return;
-          writter.writeVar(BigInt.from(id.value));
+          writter.writeVar(Uint64(id.value));
           greaseTransportParameter!.write(writter);
         },
         statelessResetToken: () {
           if (statelessResetToken == null) return;
           final x = statelessResetToken!;
-          writter.writeVar(BigInt.from(id.value));
-          writter.writeVar(16.asBigInt);
+          writter.writeVar(Uint64(id.value));
+          writter.writeVar(const Uint64(16));
           writter.writeBytes(x.token);
         },
         disableActiveMigration: () {
           if (!disableActiveMigration) return;
-          writter.writeVar(BigInt.from(id.value));
-          writter.writeVar(0.asBigInt);
+          writter.writeVar(Uint64(id.value));
+          writter.writeVar(Uint64.zero);
         },
         maxDatagramFrameSize: () {
           if (maxDatagramFrameSize == null) return;
-          writter.writeVar(BigInt.from(id.value));
+          writter.writeVar(Uint64(id.value));
           write_varint(maxDatagramFrameSize!);
         },
         preferredAddress: () {
           if (preferredAddress == null) return;
-          writter.writeVar(BigInt.from(id.value));
-          writter.writeVar(preferredAddress!.wireSize().asBigInt);
+          final x = preferredAddress!;
+          writter.writeVar(Uint64(id.value));
+          writter.writeVar(Uint64(x.wireSize()));
           preferredAddress!.write(writter);
         },
         originalDestinationConnectionId: () {
           if (originalDstCid == null) return;
           final cid = originalDstCid!;
-          writter.writeVar(BigInt.from(id.value));
-          writter.writeVar(cid.len.asBigInt);
+          writter.writeVar(Uint64(id.value));
+          writter.writeVar(Uint64(cid.len));
           writter.writeBytes(cid.bytes);
         },
         initialSourceConnectionId: () {
           if (initialSrcCid == null) return;
           final cid = initialSrcCid!;
-          writter.writeVar(BigInt.from(id.value));
-          writter.writeVar(cid.len.asBigInt);
+          writter.writeVar(Uint64(id.value));
+          writter.writeVar(Uint64(cid.len));
           writter.writeBytes(cid.bytes);
         },
         retrySourceConnectionId: () {
           if (retrySrcCid == null) return;
           final cid = retrySrcCid!;
-          writter.writeVar(BigInt.from(id.value));
-          writter.writeVar(cid.len.asBigInt);
+          writter.writeVar(Uint64(id.value));
+          writter.writeVar(Uint64(cid.len));
           writter.writeBytes(cid.bytes);
         },
         greaseQuicBit: () => () {
           if (!greaseQuicBit) return;
-          writter.writeVar(BigInt.from(id.value));
-          writter.writeVar(0.asBigInt);
+          writter.writeVar(Uint64(id.value));
+          writter.writeVar(Uint64.zero);
         },
         minAckDelayDraft07: () {
           if (minAckDelay == null) return;
           final x = minAckDelay!;
-          writter.writeVar(BigInt.from(id.value));
+          writter.writeVar(Uint64(id.value));
           write_varint(x);
         },
 
@@ -203,40 +202,40 @@ abstract class TransportParameters with _$TransportParameters {
       } catch (_) {
         return .err(.malformed);
       }
-      if (len.inner.toInt() < reader.remainingLength) {
+      if (len.inner.asInt < reader.remainingLength) {
         return .err(.malformed);
       }
 
-      final id = TransportParameterId.idPair[idx.inner.toInt()];
+      final id = TransportParameterId.idPair[idx.inner.asInt];
       if (id == null) {
         // 忽略未知的传输参数
-        reader.readFixed(len.inner.toInt());
+        reader.readFixed(len.inner.asInt);
         continue;
       }
 
       Error? throwErr2;
-      final parse_params = (void Function(int) setter) {
+      final parse_params = (void Function(VarInt) setter) {
         final _value = reader.tryReadVar();
         if (_value.isErr) return throwErr2 = .malformed;
         final value = _value.takeOk();
         if (len != value.size() || got.contains(id)) return throwErr2 = .malformed;
-        setter(value.inner.toInt());
+        setter(value);
         got.add(id);
       };
 
       final skip = () {
-        reader.readFixed(len.inner.toInt());
+        reader.readFixed(len.inner.asInt);
       };
       
       final throwErr = id.when<Error?>(
         originalDestinationConnectionId: () {
-          final _cid = decodeCid(len.inner.toInt(), params.originalDstCid, reader);
+          final _cid = decodeCid(len.inner.asInt, params.originalDstCid, reader);
           if (_cid.isErr) return _cid.error;
           params.originalDstCid = _cid.takeOk();
           return null;
         },
         statelessResetToken: () {
-          if (len.inner != .from(16) || params.statelessResetToken != null) {
+          if (len.inner != const Uint64(16) || params.statelessResetToken != null) {
             return .malformed;
           }
           final tok = Uint8List(maxCidSize);
@@ -261,24 +260,24 @@ abstract class TransportParameters with _$TransportParameters {
           return null;
         },
         initialSourceConnectionId: () {
-          final _cid = decodeCid(len.inner.toInt(), params.initialSrcCid, reader);
+          final _cid = decodeCid(len.inner.asInt, params.initialSrcCid, reader);
           if (_cid.isErr) return _cid.error;
           params.initialSrcCid = _cid.takeOk();
           return null;
         },
         retrySourceConnectionId: () {
-          final _cid = decodeCid(len.inner.toInt(), params.retrySrcCid, reader);
+          final _cid = decodeCid(len.inner.asInt, params.retrySrcCid, reader);
           if (_cid.isErr) return _cid.error;
           params.retrySrcCid = _cid.takeOk();
           return null;
         },
         maxDatagramFrameSize: () {
-          if (len.inner > .from(8) || params.maxDatagramFrameSize != null) {
+          if (len.inner > const Uint64(8) || params.maxDatagramFrameSize != null) {
             return .malformed;
           }
           final _x = reader.tryReadVar();
           if (_x.isErr) return .malformed;
-          params.maxDatagramFrameSize = _x.takeOk().inner.toInt();
+          params.maxDatagramFrameSize = _x.takeOk();
           return null;
         },
         greaseQuicBit: () {
@@ -291,7 +290,7 @@ abstract class TransportParameters with _$TransportParameters {
         minAckDelayDraft07: () {
           final _x = reader.tryReadVar();
           if (_x.isErr) return .malformed;
-          params.minAckDelay = _x.takeOk().inner.toInt();
+          params.minAckDelay = _x.takeOk();
           return null;
         },
 
@@ -322,15 +321,15 @@ abstract class TransportParameters with _$TransportParameters {
     }
 
     if (
-      params.ackDelayExponent > 20
-      || params.maxAckDelay >= 1 << 14
-      || params.activeConnectionIdLimit < 2
-      || params.maxUdpPayloadSize < 1200
-      || params.initialMaxStreamDataUni > maxStreamCount
-      || params.initialMaxStreamsUni > maxCidSize
+      params.ackDelayExponent.inner > const Uint64(20)
+      || params.maxAckDelay.inner >= const Uint64(1 << 14)
+      || params.activeConnectionIdLimit.inner < const Uint64(2)
+      || params.maxUdpPayloadSize.inner < const Uint64(1200)
+      || params.initialMaxStreamDataUni.inner > const Uint64(maxStreamCount)
+      || params.initialMaxStreamsUni.inner > const Uint64(maxCidSize)
       || params.minAckDelay == null
         ? false
-        : (params.minAckDelay! > params.maxAckDelay * 1_000)
+        : (params.minAckDelay! > params.maxAckDelay * const VarInt(Uint64(1_000)))
       || (
         side.isServer
         && (
@@ -450,15 +449,16 @@ abstract class ReservedTransportParameter with _$ReservedTransportParameter {
 
   void write(BufferWritter writter) {
     writter.writeVar(id.inner);
-    writter.writeVar(payloadLen.asBigInt);
+    writter.writeVar(Uint64(payloadLen));
     writter.writeBytes(Uint8List.view(payload.buffer, 0, payloadLen));
   }
 
   static VarInt generateReservedId(RngCore rng) {
-    final rand = rng.randomRange<BigInt>(BigInt.zero, (BigInt.one << 62) - .from(27));
-    final id = rand - (rand % .from(31)) + .from(27);
-    assert(id % .from(31) == .from(27), "generated id does not have the form of 31 * N + 27");
-    return VarInt.new_(id).takeOk("generated id does fit into range of allowed transport parameter IDs: [0; 2^62)");
+    final rand = rng.randomRange<Uint64>(.zero, (Uint64.one << 62) - const Uint64(27));
+    final id = rand - (rand % const Uint64(31)) + const Uint64(27);
+    assert(id % const Uint64(31) == const Uint64(27), "generated id does not have the form of 31 * N + 27");
+    return VarInt.fromUint64(id)
+      .takeOk("generated id does fit into range of allowed transport parameter IDs: [0; 2^62)");
   }
 }
 

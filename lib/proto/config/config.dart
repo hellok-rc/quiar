@@ -11,7 +11,7 @@ part "config.freezed.dart";
 abstract class EndpointConfig with _$EndpointConfig {
   const factory EndpointConfig({
     required HmacKey resetKey,
-    required int maxUdpPayloadSize,
+    required VarInt maxUdpPayloadSize,
     required ConnectionIdGenerator Function() connectionIdGeneratorFactory,
     required Uint32List supportedVersions,
     required bool greaseQuicBit,

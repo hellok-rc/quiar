@@ -1,10 +1,11 @@
 import "dart:typed_data";
 import "dart:math" show Random;
+import "util.dart" show Uint64;
 
 // 兼容 Rust 的底层
 abstract class RngBase {
   int nextU32();
-  BigInt nextU64();
+  Uint64 nextU64();
   void fillBytes(Uint8List bytes);
 }
 
@@ -18,8 +19,8 @@ abstract class BaseGenerator {
 class StandardGenerator implements BaseGenerator {
   static const i64max = 0x7FFFFFFFFFFFFFFF;
   static const u32max = 0xFFFFFFFF;
-  static final u32bmax = BigInt.from(u32max);
-  static final u64max = (BigInt.one << 64) - .one;
+  static const u32bmax = Uint64(u32max);
+  static final u64max = (Uint64.one << 64) - .one;
   Random get random {
     try {
       return Random.secure();
@@ -40,35 +41,25 @@ class StandardGenerator implements BaseGenerator {
       case double:
         if (min != null || max != null) return null;
         return random.nextDouble() as T;
-      case BigInt:
+      case Uint64:
         // 视为 u64
-        final (min_, max_) = (min ?? BigInt.zero, max ?? u64max) as (BigInt, BigInt);
-        if (min_ < BigInt.zero || max_ > u64max) return null;
+        final (min_, max_) = (min ?? Uint64.zero, max ?? u64max) as (Uint64, Uint64);
+        if (min_ < .zero || max_ > u64max) return null;
         // 采用高位低位组合进行随机数生成
-        final minl = (min_ & u32bmax).toInt();
-        final minh = (min_ >> 32).toInt();
-        final maxl = (max_ & u32bmax).toInt();
-        final maxh = (max_ >> 32).toInt();
-        int u64h;
-        int u64l;
-        if (minh == maxh) {
-          u64h = minh;
-        } else {
-          u64h = random.nextInt(maxh - minh) + minh;
-        }
-        if (u64h == minh && u64h == maxh) {
-          u64l = random.nextInt(maxl - minl) + minl;
-        } else if (u64h == minh) {
-          u64l = random.nextInt(u32max - minl) + minl;
-        } else if (u64h == maxh) {
-          u64l = random.nextInt(maxl);
-        } else {
-          u64l = random.nextInt(u32max);
-        }
-        final bigl = BigInt.from(u64l);
-        final bigh = BigInt.from(u64h);
-        final big = (bigh << 32) | bigl;
-        return big as T;
+        final range = max_ - min_;
+        final (rh, rl) = (
+          (range & const Uint64(u32max) << 32) >> 32,
+          range & const Uint64(u32max)
+        );
+        final Uint64 oh = random.nextBool()
+          ? .zero
+          : Uint64(rh.asInt == 0 ? 0 : random.nextInt(rh.asInt));
+        final int olMax = (rh == oh)
+          ? rl.asInt
+          : u32max;
+        final ol = Uint64(olMax == 0 ? 0 : random.nextInt(olMax));
+        final result = min_ + ((oh << 32) | ol);
+        return result as T;
       default:
         return null;
     }
@@ -103,10 +94,10 @@ class Rng implements RngCore {
   }
 
   @override
-  int nextU32() => _genOrThrow<int>(0, 0xFFFFFFFF)!;
+  int nextU32() => _genOrThrow<int>(0, 0xFFFFFFFF);
 
   @override
-  BigInt nextU64() => _genOrThrow<BigInt>();
+  Uint64 nextU64() => _genOrThrow<Uint64>();
 
   @override
   T random<T>() => _genOrThrow<T>();

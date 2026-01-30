@@ -59,7 +59,7 @@ extension BufferReaderExt on BufferReader {
     }
   }
 
-  OrErr<BigInt, UnexpectedEnd> tryReadUint64() {
+  OrErr<Uint64, UnexpectedEnd> tryReadUint64() {
     try {
       return .ok(readUint64());
     } catch (_) {
@@ -149,7 +149,7 @@ extension SizedBufferReaderExt on SizedBufferReader {
 }
 
 extension BufferWritterExt on BufferWritter {
-  void writeVar(BigInt x) {
-    encodeVarInt(VarInt.new_(x).takeOk(), this);
+  void writeVar(Uint64 x) {
+    encodeVarInt(VarInt.fromUint64(x).takeOk(), this);
   }
 }

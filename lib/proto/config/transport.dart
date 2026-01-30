@@ -6,12 +6,12 @@ part "transport.freezed.dart";
 @freezed
 abstract class TransportConfig with _$TransportConfig {
   const factory TransportConfig({
-    required int maxConcurrentBidiStreams,
-    required int maxConcurrentUniStreams,
-    required int maxIdleTimeout,
-    required int streamReceiveWindow,
-    required int receiveWindow,
-    required BigInt sendWindow,
+    required VarInt maxConcurrentBidiStreams,
+    required VarInt maxConcurrentUniStreams,
+    required VarInt maxIdleTimeout,
+    required VarInt streamReceiveWindow,
+    required VarInt receiveWindow,
+    required Uint64 sendWindow,
     required bool sendFairness,
     required int packetThreshold,
     required double timeThreshold,

@@ -8,7 +8,7 @@ abstract class BufferReader {
   int readUint8();
   int readUint16([ Endian? endian ]);
   int readUint32([ Endian? endian ]);
-  BigInt readUint64([ Endian? endian ]);
+  Uint64 readUint64([ Endian? endian ]);
 
   int readInt8();
   int readInt16([ Endian? endian ]);
@@ -47,7 +47,8 @@ class BaseReader implements BufferReader {
     _readByteData(2).getUint16(0, endian ?? _defaultEndian);
   int readUint32([ Endian? endian ]) =>
     _readByteData(4).getUint32(0, endian ?? _defaultEndian);
-  BigInt readUint64([ Endian? endian ]) => readFixed(8).toU64();
+  Uint64 readUint64([ Endian? endian ]) =>
+    Uint64.fromBytes(readFixed(8), endian ?? _defaultEndian);
 
   int readInt8() =>
     _readByteData(1).getInt8(0);
@@ -99,7 +100,7 @@ abstract class BufferWritter {
   void writeUint8(int value);
   void writeUint16(int value, [ Endian? endian ]);
   void writeUint32(int value, [ Endian? endian ]);
-  void writeUint64(BigInt value, [ Endian? endian ]);
+  void writeUint64(Uint64 value, [ Endian? endian ]);
 
   void writeInt8(int value);
   void writeInt16(int value, [ Endian? endian ]);
@@ -137,8 +138,8 @@ class BaseWritter implements BufferWritter {
     _writeByteData(2, (b) => b.setUint16(0, value, endian ?? _defaultEndian));
   void writeUint32(int value, [ Endian? endian ]) =>
     _writeByteData(4, (b) => b.setUint32(0, value, endian ?? _defaultEndian));
-  void writeUint64(BigInt value, [ Endian? endian ]) =>
-    writeBytes(value.toUint8List(endian ?? _defaultEndian));
+  void writeUint64(Uint64 value, [ Endian? endian ]) =>
+    writeBytes(value.toBytes(endian ?? _defaultEndian));
 
   void writeInt8(int value) =>
     _writeByteData(1, (b) => b.setInt8(0, value));
